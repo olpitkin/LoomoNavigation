@@ -445,8 +445,6 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
             @Override
             public void onRecognitionStart() {
                 Log.d(TAG, "onRecognitionStart");
-                //   android.os.Message statusMsg = mHandler.obtainMessage(SHOW_MSG, CLEAR, 0, getString(R.string.recognition_start));
-                //   mHandler.sendMessage(statusMsg);
             }
 
             @Override
@@ -455,21 +453,24 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                 Log.d(TAG, "recognition phase: " + recognitionResult.getRecognitionResult() +
                         ", confidence:" + recognitionResult.getConfidence());
                 String result = recognitionResult.getRecognitionResult();
-                //android.os.Message resultMsg = mHandler.obtainMessage(SPEECH_INPUT, 0, 0, "result" + result + "confidence" + recognitionResult.getConfidence());
-                if (result.contains("bring") || result.contains("guide") || result.contains("get")) {
 
+                if (result.contains("bring") || result.contains("guide") || result.contains("get")) {
                     if (result.contains("Weber")) {
                         sendMessage(0);
+                    } else if (result.contains("room")) {
+                        sendMessage(1);
+                    } else if (result.contains("toilet")) {
+                        sendMessage(2);
+                    } else if (result.contains("secretary")) {
+                        sendMessage(3);
                     }
 
                     try {
-                        Log.e("TAG", "speech");
                         mSpeaker.speak("follow me", mTtsListener);
                     } catch (VoiceException e) {
                         e.printStackTrace();
                     }
-
-                    //mHandler.sendMessage(resultMsg);
+                    return true;
                     //true means continuing to recognition, false means wakeup.
                 }
                 return false;
@@ -495,24 +496,17 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
             @Override
             public void onStandby() {
                 Log.d(TAG, "Wakeuplistner onStandby");
-                // android.os.Message statusMsg = mHandler.obtainMessage(SHOW_MSG, CLEAR, 0, getString(R.string.wakeup_standby));
-                // mHandler.sendMessage(statusMsg);
             }
 
             @Override
             public void onWakeupResult(WakeupResult wakeupResult) {
                 //show the wakeup result and wakeup angle.
                 Log.d(TAG, "wakeup word:" + wakeupResult.getResult() + ", angle " + wakeupResult.getAngle());
-                // android.os.Message resultMsg = mHandler.obtainMessage(SHOW_MSG, CLEAR, 0, getString(R.string.wakeup_result) + wakeupResult.getResult() + getString(R.string.wakeup_angle) + wakeupResult.getAngle());
-                // mHandler.sendMessage(resultMsg);
             }
 
             @Override
             public void onWakeupError(String s) {
-                //show the wakeup error reason.
                 Log.d(TAG, "onWakeupError");
-                //   android.os.Message errorMsg = mHandler.obtainMessage(SHOW_MSG, CLEAR, 0, getString(R.string.wakeup_error) + s);
-                //   mHandler.sendMessage(errorMsg);
             }
         };
 
@@ -521,7 +515,6 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
             public void onBind() {
                 Log.i(TAG,"recognition bind");
                 try {
-                    //get recognition language when service bind.
                     mRecognitionLanguage = mRecognizer.getLanguage();
                     switch (mRecognitionLanguage) {
                         case Languages.EN_US:
