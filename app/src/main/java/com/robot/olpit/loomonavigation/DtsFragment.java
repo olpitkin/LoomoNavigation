@@ -21,6 +21,7 @@ import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -37,6 +38,7 @@ import com.segway.robot.sdk.baseconnectivity.MessageRouter;
 import com.segway.robot.sdk.connectivity.BufferMessage;
 import com.segway.robot.sdk.connectivity.RobotException;
 import com.segway.robot.sdk.connectivity.RobotMessageRouter;
+import com.segway.robot.sdk.connectivity.StringMessage;
 import com.segway.robot.sdk.locomotion.head.Head;
 import com.segway.robot.sdk.locomotion.sbv.Base;
 import com.segway.robot.sdk.vision.DTS;
@@ -185,6 +187,15 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
         view.findViewById(R.id.base_follow).setOnClickListener(this);
         mTextureView = (AutoFitDrawableView) view.findViewById(R.id.texture);
         hintTv = (TextView) view.findViewById(R.id.hint_tv);
+
+        Button debug = (Button) view.findViewById(R.id.debug);
+        debug.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                sendString("debug");
+                processControl();
+            }
+        });
     }
 
     @Override
@@ -402,12 +413,32 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
             @Override
             public void onMessageReceived(final Message message) {
                 Log.d(TAG, "onMessageReceived: id=" + message.getId() + ";timestamp=" + message.getTimestamp());
-                if (message instanceof BufferMessage) {
+                if (message instanceof StringMessage) {
                     // don't do too much work here to avoid blockage of next message
                     // download data and start tracking in UIThread
+                    String m = message.getContent().toString();
+                    //TODO STOP (interrupt thread)
+                    if(Long.parseLong(m) == 0) {
+                        controlSignal = 0;
+                    }
+                    else if(Long.parseLong(m) == 1) {
+                        controlSignal = 1;
+                    }
+                    else if(Long.parseLong(m) == 2) {
+                        controlSignal = 2;
+                    }
+                    else if(Long.parseLong(m) == 3) {
+                        controlSignal = 3;
+                    }
+                    else if(Long.parseLong(m) == 4) {
+                        controlSignal = 4;
+                    }
+                    else if(Long.parseLong(m) == 5) {
+                        controlSignal = 5;
+                    }
+                } else {
                     android.os.Message msg = mHandler.obtainMessage(ACTION_DOWNLOAD_AND_TRACK, message);
                     mHandler.sendMessage(msg);
-                } else {
                     Log.e(TAG, "Received StringMessage. " + "It's not gonna happen");
                 }
             }
@@ -600,13 +631,10 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
             case R.id.detect: {
                 if (!isDetectionStarted) {
                     mDTS.startDetectingPerson(mPersonDetectListener);
-                    showToast("Start detecting person...");
                     isDetectionStarted = true;
                     isTrackingStarted = false;
-                    processControl();
                 } else {
                     mDTS.stopDetectingPerson();
-                    showToast("Stop detecting person...");
                     isDetectionStarted = false;
                 }
                 break;
@@ -614,26 +642,21 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
             case R.id.track: {
                 if (!isTrackingStarted) {
                     mDTS.startPersonTracking(null, 15L * 60 * 1000 * 1000, mPersonTrackingListener);
-                    showToast("Start tracking person...");
                     isTrackingStarted = true;
                     isDetectionStarted = false;
                 } else {
                     mDTS.stopPersonTracking();
-                    showToast("Stop tracking person...");
                     isTrackingStarted = false;
                 }
                 break;
             }
             case R.id.head_follow: {
                 if (!mHeadBind) {
-                    showToast("Connect to Head First...");
                     return;
                 }
                 if (!mHeadFollow) {
-                    showToast("Enable Head Follow");
                     mHeadFollow = true;
                 } else {
-                    showToast("Disable Head Follow");
                     mHeadFollow = false;
                     mHead.setWorldPitch(0.3f);
                     mHead.setWorldYaw(0.0f);
@@ -643,11 +666,9 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
             case R.id.base_follow: {
                 mBase.setOnCheckPointArrivedListener(mCheckPointStateListener);
                 if (!mBaseFollow) {
-                    showToast("Enable Base Follow");
                     mBaseFollow = true;
                     mBase.setControlMode(Base.CONTROL_MODE_FOLLOW_TARGET);
                 } else {
-                    showToast("Disable Base Follow");
                     mBaseFollow = false;
                     mBase.stop();
                     mBase.setControlMode(Base.CONTROL_MODE_RAW);
@@ -770,32 +791,32 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                         case 1 :
                             //LEFT TURN
                             mBase.setLinearVelocity(0);
-                            mBase.setAngularVelocity(-0.5f);
+                            mBase.setAngularVelocity(0.5f);
                             break;
                         case 2 :
                             // LEFT + F
-                            mBase.setLinearVelocity(0.1f);
+                            mBase.setLinearVelocity(-0.1f);
                             mBase.setAngularVelocity(0.1f);
                             break;
                         case 3 :
                             // AHEAD
-                            mBase.setLinearVelocity(0.1f);
+                            mBase.setLinearVelocity(-0.1f);
                             mBase.setAngularVelocity(0);
                             break;
                         case 4 :
                             // RIGHT + F
-                            mBase.setLinearVelocity(0.1f);
-                            mBase.setAngularVelocity(0.1f);
+                            mBase.setLinearVelocity(-0.1f);
+                            mBase.setAngularVelocity(-0.1f);
                             break;
                         case 5 :
                             // RIGHT
                             mBase.setLinearVelocity(0);
                             mBase.setAngularVelocity(0.5f);
                             break;
-                        //         }
-                        //    } else {
-                        //       mBase.setLinearVelocity(0);
-                        //      mBase.setAngularVelocity(0);
+                        default:
+                              mBase.setLinearVelocity(0);
+                              mBase.setAngularVelocity(0);
+                              break;
                     }
                     try {
                         Thread.sleep(10);
@@ -818,13 +839,22 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
         buffer.flip();
         byte[] messageByte = buffer.array();
         try {
+            Log.i("SENDING", "" + c);
             mMessageConnection.sendMessage(new BufferMessage(messageByte));
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    private void downLoadData(byte[] bytes) {
+    private void sendString(String c) {
+        try {
+            //message sent is StringMessage
+            mMessageConnection.sendMessage(new StringMessage(c));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+        private void downLoadData(byte[] bytes) {
         mTrackingPoints = new LinkedList<>();
 
         ByteBuffer buffer = ByteBuffer.wrap(bytes);
