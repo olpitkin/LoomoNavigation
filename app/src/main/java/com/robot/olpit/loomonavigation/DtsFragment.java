@@ -1,19 +1,15 @@
 package com.robot.olpit.loomonavigation;
 
-import android.app.Fragment;
-import android.view.View;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.Fragment;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.content.res.Resources;
-import android.graphics.PointF;
 import android.graphics.SurfaceTexture;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
-import android.os.Handler;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -35,7 +31,6 @@ import com.segway.robot.sdk.base.bind.ServiceBinder;
 import com.segway.robot.sdk.baseconnectivity.Message;
 import com.segway.robot.sdk.baseconnectivity.MessageConnection;
 import com.segway.robot.sdk.baseconnectivity.MessageRouter;
-import com.segway.robot.sdk.connectivity.BufferMessage;
 import com.segway.robot.sdk.connectivity.RobotException;
 import com.segway.robot.sdk.connectivity.RobotMessageRouter;
 import com.segway.robot.sdk.connectivity.StringMessage;
@@ -55,9 +50,6 @@ import com.segway.robot.sdk.voice.recognition.WakeupResult;
 import com.segway.robot.sdk.voice.tts.TtsListener;
 import com.segway.robot.support.control.HeadPIDController;
 
-import java.nio.BufferUnderflowException;
-import java.nio.ByteBuffer;
-import java.util.LinkedList;
 import java.util.Locale;
 
 /**
@@ -69,11 +61,6 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
     private static final String TAG = "DtsFragment";
     private static final int PREVIEW_WIDTH = 640;
     private static final int PREVIEW_HEIGHT = 480;
-    private static final int ACTION_SHOW_MSG = 1;
-    private static final int ACTION_BEHAVE = 2;
-    private static final int ACTION_DOWNLOAD_AND_TRACK = 3;
-    private static final int ACTION_TELL_PHONE = 4;
-    private static final int SPEECH_INPUT = 5;
 
     private Vision mVision;
     private DTS mDTS;
@@ -87,13 +74,13 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
 
     private boolean isDetectionStarted = false;
     private boolean isTrackingStarted = false;
-    private Boolean isTracking = false;
     private boolean mBaseBind;
     private boolean mHeadBind;
-    private Boolean isMoving = false;
+    private Boolean isMoving = true;
     boolean mHeadFollow;
     boolean mBaseFollow;
     boolean mBaseGuide = true;
+    boolean threadRunning = false;
 
     public float personDistance;
 
@@ -114,8 +101,6 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
     private WakeupListener mWakeupListener;
     private RecognitionListener mRecognitionListener;
 
-    private static LinkedList<PointF> mTrackingPoints;
-
     enum DtsState {
         STOP,
         DETECTING,
@@ -125,7 +110,6 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
     DtsState mDtsState;
 
     private int controlSignal = 0;
-
     private int mSpeakerLanguage;
     private int mRecognitionLanguage;
     private GrammarConstraint mThreeSlotGrammar;
@@ -184,16 +168,14 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
         view.findViewById(R.id.detect).setOnClickListener(this);
         view.findViewById(R.id.track).setOnClickListener(this);
         view.findViewById(R.id.head_follow).setOnClickListener(this);
-        view.findViewById(R.id.base_follow).setOnClickListener(this);
         mTextureView = (AutoFitDrawableView) view.findViewById(R.id.texture);
         hintTv = (TextView) view.findViewById(R.id.hint_tv);
-
+        threadRunning = false;
         Button debug = (Button) view.findViewById(R.id.debug);
         debug.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 sendString("debug");
-                processControl();
             }
         });
     }
@@ -412,13 +394,20 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
 
             @Override
             public void onMessageReceived(final Message message) {
-                Log.d(TAG, "onMessageReceived: id=" + message.getId() + ";timestamp=" + message.getTimestamp());
                 if (message instanceof StringMessage) {
-                    // don't do too much work here to avoid blockage of next message
-                    // download data and start tracking in UIThread
                     String m = message.getContent().toString();
-                    //TODO STOP (interrupt thread)
-                    if(Long.parseLong(m) == 0) {
+                    Log.i("MESSAGE", m + threadRunning);
+                    if (m.equals("STOP")) {
+                        controlSignal = 0;
+                        mBase.setLinearVelocity(0);
+                        mBase.setAngularVelocity(0);
+                        isMoving = false;
+                    }
+                    else if (m.equals("GO")) {
+                        isMoving = true;
+                    }
+                    else if(Long.parseLong(m) == 0) {
+                        //STOP
                         controlSignal = 0;
                     }
                     else if(Long.parseLong(m) == 1) {
@@ -436,10 +425,13 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                     else if(Long.parseLong(m) == 5) {
                         controlSignal = 5;
                     }
-                } else {
-                    android.os.Message msg = mHandler.obtainMessage(ACTION_DOWNLOAD_AND_TRACK, message);
-                    mHandler.sendMessage(msg);
-                    Log.e(TAG, "Received StringMessage. " + "It's not gonna happen");
+                    else if(Long.parseLong(m) == 6) {
+                        controlSignal = 6;
+                    }
+                }
+                if (!threadRunning) {
+                    threadRunning = true;
+                    processControl();
                 }
             }
         };
@@ -487,15 +479,14 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
 
                 if (result.contains("bring") || result.contains("guide") || result.contains("get")) {
                     if (result.contains("Weber")) {
-                        sendMessage(0);
+                        sendString("Weber");
                     } else if (result.contains("room")) {
-                        sendMessage(1);
+                        sendString("room");
                     } else if (result.contains("toilet")) {
-                        sendMessage(2);
+                        sendString("toilet");
                     } else if (result.contains("secretary")) {
-                        sendMessage(3);
+                        sendString("secretary");
                     }
-
                     try {
                         mSpeaker.speak("follow me", mTtsListener);
                     } catch (VoiceException e) {
@@ -509,7 +500,6 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
 
             @Override
             public boolean onRecognitionError(String s) {
-                //show the recognition error reason.
                 Log.d(TAG, "onRecognitionError: " + s);
 
                 try {
@@ -531,7 +521,6 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
 
             @Override
             public void onWakeupResult(WakeupResult wakeupResult) {
-                //show the wakeup result and wakeup angle.
                 Log.d(TAG, "wakeup word:" + wakeupResult.getResult() + ", angle " + wakeupResult.getAngle());
             }
 
@@ -570,10 +559,6 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
             public void onBind() {
                 Log.d(TAG, "speaker service onBind");
                 try {
-                    //       android.os.Message connectMsg = mHandler.obtainMessage(SHOW_MSG, APPEND, 0,
-                    //               getString(R.string.speaker_connected));
-                    //       mHandler.sendMessage(connectMsg);
-                    //get speaker service language.
                     mSpeakerLanguage = mSpeaker.getLanguage();
                 } catch (VoiceException e) {
                     Log.e(TAG, "Exception: ", e);
@@ -592,16 +577,12 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
             public void onSpeechStarted(String s) {
                 //s is speech content, callback this method when speech is starting.
                 Log.d(TAG, "onSpeechStarted() called with: s = [" + s + "]");
-                //   android.os.Message statusMsg = mHandler.obtainMessage(SHOW_MSG, CLEAR, 0, getString(R.string.speech_start));
-                //   mHandler.sendMessage(statusMsg);
             }
 
             @Override
             public void onSpeechFinished(String s) {
                 //s is speech content, callback this method when speech is finish.
                 Log.d(TAG, "onSpeechFinished() called with: s = [" + s + "]");
-                // android.os.Message statusMsg = mHandler.obtainMessage(SHOW_MSG, CLEAR, 0, getString(R.string.speech_end));
-                // mHandler.sendMessage(statusMsg);
             }
 
             @Override
@@ -615,7 +596,6 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
     @Override
     public void onResume() {
         super.onResume();
-
         if (mTextureView.getPreview().isAvailable()) {
             bindServices();
         } else {
@@ -663,18 +643,6 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                 }
                 break;
             }
-            case R.id.base_follow: {
-                mBase.setOnCheckPointArrivedListener(mCheckPointStateListener);
-                if (!mBaseFollow) {
-                    mBaseFollow = true;
-                    mBase.setControlMode(Base.CONTROL_MODE_FOLLOW_TARGET);
-                } else {
-                    mBaseFollow = false;
-                    mBase.stop();
-                    mBase.setControlMode(Base.CONTROL_MODE_RAW);
-                }
-                break;
-            }
         }
     }
 
@@ -715,73 +683,11 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
         return "unknown";
     }
 
-    @SuppressLint("HandlerLeak")
-    private final Handler mHandler = new Handler() {
-        @Override
-        public void handleMessage(android.os.Message msg) {
-            super.handleMessage(msg);
-            switch (msg.what) {
-                case ACTION_SHOW_MSG:
-                    hintTv.setText(msg.obj.toString());
-                    break;
-                case ACTION_DOWNLOAD_AND_TRACK:
-                    Message message = (Message)msg.obj;
-                    byte[] bytes = (byte[]) message.getContent();
-                    // determin STOP message or PointsList message
-                    if (bytes.length == 50) {
-                        ByteBuffer buffer = ByteBuffer.wrap(bytes);
-                        int control = buffer.getInt();
-                        if(control == 0) {
-                            controlSignal = 0;
-                        }
-                        if(control == 1) {
-                            controlSignal = 1;
-                        }
-                        if(control == 2) {
-                            controlSignal = 2;
-                        }
-                        if(control == 3) {
-                            controlSignal = 3;
-                        }
-                        if(control == 4) {
-                            controlSignal = 4;
-                        }
-                    } else if (bytes.length == 100) {
-                        ByteBuffer buffer = ByteBuffer.wrap(bytes);
-                        int control = buffer.getInt();
-                        if(control == 0) {
-                            Log.d(TAG, "Received Stop message");
-                            mBase.setAngularVelocity(0);
-                            mBase.setLinearVelocity(0);
-                        }
-                        if(control == 1) {
-                            Log.d(TAG, "Received GO message");
-                            mBase.setLinearVelocity(1f);
-                        }
-                        if(control == 2) {
-                            Log.d(TAG, "Received S message");
-                            mBase.setLinearVelocity(-0.5f);
-                        }
-                        if(control == 3) {
-                            Log.d(TAG, "Received L message");
-                            mBase.setAngularVelocity(0.5f);
-                        }
-                        if(control == 4) {
-                            Log.d(TAG, "Received R message");
-                            mBase.setAngularVelocity(-0.5f);
-                        }
-                    }
-            }
-        }
-    };
-
     private void processControl() {
         Runnable runnable = new Runnable() {
             @Override
             public void run() {
-                isMoving = true;
                 while (isMoving) {
-                    Log.i("CONTROL", "Signal : " + controlSignal);
                     //  if (mDtsState == TRACKING && personDistance > 0.5 && personDistance < 5) {
                     switch (controlSignal) {
                         case 0 :
@@ -795,23 +701,28 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                             break;
                         case 2 :
                             // LEFT + F
-                            mBase.setLinearVelocity(-0.1f);
-                            mBase.setAngularVelocity(0.1f);
+                            mBase.setLinearVelocity(-0.5f);
+                            mBase.setAngularVelocity(0.2f);
                             break;
                         case 3 :
                             // AHEAD
-                            mBase.setLinearVelocity(-0.1f);
+                            mBase.setLinearVelocity(-0.5f);
                             mBase.setAngularVelocity(0);
                             break;
                         case 4 :
                             // RIGHT + F
-                            mBase.setLinearVelocity(-0.1f);
-                            mBase.setAngularVelocity(-0.1f);
+                            mBase.setLinearVelocity(-0.5f);
+                            mBase.setAngularVelocity(-0.2f);
                             break;
                         case 5 :
                             // RIGHT
                             mBase.setLinearVelocity(0);
-                            mBase.setAngularVelocity(0.5f);
+                            mBase.setAngularVelocity(-0.5f);
+                            break;
+                        case 6 :
+                            // BACK
+                            mBase.setLinearVelocity(0.3f);
+                            mBase.setAngularVelocity(0);
                             break;
                         default:
                               mBase.setLinearVelocity(0);
@@ -826,24 +737,8 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                 }
             }
         };
-        if (!isMoving) {
-            Thread thread = new Thread(runnable);
-            thread.start();
-        }
-    }
-
-    // pack file to byte[]
-    private void sendMessage(int c) {
-        ByteBuffer buffer = ByteBuffer.allocate(50);
-        buffer.putInt(c);
-        buffer.flip();
-        byte[] messageByte = buffer.array();
-        try {
-            Log.i("SENDING", "" + c);
-            mMessageConnection.sendMessage(new BufferMessage(messageByte));
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        Thread thread = new Thread(runnable);
+        thread.start();
     }
 
     private void sendString(String c) {
@@ -852,22 +747,6 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
             mMessageConnection.sendMessage(new StringMessage(c));
         } catch (Exception e) {
             e.printStackTrace();
-        }
-    }
-        private void downLoadData(byte[] bytes) {
-        mTrackingPoints = new LinkedList<>();
-
-        ByteBuffer buffer = ByteBuffer.wrap(bytes);
-        buffer.getInt();    // ignore indicator
-        while(buffer.hasRemaining()) {
-            try {
-                float x = buffer.getFloat();
-                float y = buffer.getFloat();
-                Log.d(TAG, "Receive " + x + "< >" + y);
-                mTrackingPoints.push(new PointF(x, y));
-            } catch(BufferUnderflowException ignored) {
-                break;
-            }
         }
     }
 
@@ -908,6 +787,8 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
 
                 "         ]\n" +
                 "     }";
+
+        //TODO SIMPLE COMMANDS TURN LEFT RIGHT STOP GO
         mThreeSlotGrammar = mRecognizer.createGrammarConstraint(grammarJson);
         mRecognizer.addGrammarConstraint(mThreeSlotGrammar);
     }

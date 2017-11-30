@@ -25,13 +25,13 @@
         <Button
             android:id="@+id/detect"
             android:layout_width="match_parent"
-            android:layout_height="60dp"
+            android:layout_height="80dp"
             android:text="Detect" />
 
         <ToggleButton
             android:id="@+id/track"
             android:layout_width="match_parent"
-            android:layout_height="60dp"
+            android:layout_height="80dp"
             android:layout_below="@id/detect"
             android:textOn="Tracking ON"
             android:textOff="Tracking OFF"/>
@@ -39,26 +39,17 @@
         <ToggleButton
             android:id="@+id/head_follow"
             android:layout_width="match_parent"
-            android:layout_height="60dp"
+            android:layout_height="80dp"
             android:layout_below="@id/track"
             android:textOn="Head Follow ON"
             android:textOff="Head Follow OFF"
             />
 
-        <ToggleButton
-            android:id="@+id/base_follow"
-            android:layout_width="match_parent"
-            android:layout_height="60dp"
-            android:layout_below="@id/head_follow"
-            android:textOn="Base Follow ON"
-            android:textOff="Base Follow OFF"
-            />
-
         <Button
             android:id="@+id/debug"
             android:layout_width="match_parent"
-            android:layout_height="60dp"
-            android:layout_below="@id/base_follow"
+            android:layout_height="80dp"
+            android:layout_below="@id/head_follow"
             android:text="Debug" />
 
     </RelativeLayout>
