@@ -396,12 +396,17 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
             public void onMessageReceived(final Message message) {
                 if (message instanceof StringMessage) {
                     String m = message.getContent().toString();
-                    Log.i("MESSAGE", m + threadRunning);
                     if (m.equals("STOP")) {
                         controlSignal = 0;
                         mBase.setLinearVelocity(0);
                         mBase.setAngularVelocity(0);
                         isMoving = false;
+                    } else if (m.equals("GOAL")) {
+                        try {
+                            mSpeaker.speak("done", mTtsListener);
+                        } catch (VoiceException e) {
+                            e.printStackTrace();
+                        }
                     }
                     else if (m.equals("GO")) {
                         isMoving = true;
@@ -478,24 +483,26 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                 String result = recognitionResult.getRecognitionResult();
 
                 if (result.contains("bring") || result.contains("guide") || result.contains("get")) {
-                    if (result.contains("Weber")) {
-                        sendString("Weber");
+                    if (result.contains("David")) {
+                        sendString("David");
                     } else if (result.contains("room")) {
                         sendString("room");
                     } else if (result.contains("toilet")) {
                         sendString("toilet");
                     } else if (result.contains("secretary")) {
                         sendString("secretary");
+                    } else if (result.contains("start")) {
+                        sendString("START");
                     }
                     try {
                         mSpeaker.speak("follow me", mTtsListener);
                     } catch (VoiceException e) {
                         e.printStackTrace();
                     }
-                    return true;
+                    return false;
                     //true means continuing to recognition, false means wakeup.
                 }
-                return false;
+                return true;
             }
 
             @Override
@@ -603,6 +610,7 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
             mTextureView.setPreviewSizeAndRotation(PREVIEW_WIDTH, PREVIEW_HEIGHT, rotation);
             mTextureView.setSurfaceTextureListenerForPerview(mSurfaceTextureListener);
         }
+        threadRunning=false;
     }
 
     @Override
@@ -697,27 +705,27 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                         case 1 :
                             //LEFT TURN
                             mBase.setLinearVelocity(0);
-                            mBase.setAngularVelocity(0.5f);
+                            mBase.setAngularVelocity(0.7f);
                             break;
                         case 2 :
                             // LEFT + F
-                            mBase.setLinearVelocity(-0.5f);
+                            mBase.setLinearVelocity(-0.7f);
                             mBase.setAngularVelocity(0.2f);
                             break;
                         case 3 :
                             // AHEAD
-                            mBase.setLinearVelocity(-0.5f);
+                            mBase.setLinearVelocity(-0.7f);
                             mBase.setAngularVelocity(0);
                             break;
                         case 4 :
                             // RIGHT + F
-                            mBase.setLinearVelocity(-0.5f);
+                            mBase.setLinearVelocity(-0.7f);
                             mBase.setAngularVelocity(-0.2f);
                             break;
                         case 5 :
                             // RIGHT
                             mBase.setLinearVelocity(0);
-                            mBase.setAngularVelocity(-0.5f);
+                            mBase.setAngularVelocity(-0.7f);
                             break;
                         case 6 :
                             // BACK
@@ -770,8 +778,8 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                 "                 \"isOptional\": true,\n" +
                 "                 \"word\": [\n" +
                 "                     \"the room\",\n" +
-                "                     \"the \",\n" +
-                "                     \"professor \"\n" +
+                "                     \"professor\",\n" +
+                "                     \"the professor \"\n" +
                 "                 ]\n" +
                 "             },\n" +
 
@@ -779,6 +787,7 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                 "                 \"name\": \"word3\",\n" +
                 "                 \"isOptional\": true,\n" +
                 "                 \"word\": [\n" +
+                "                     \"start\",\n" +
                 "                     \"David\",\n" +
                 "                     \"Weber \",\n" +
                 "                     \"toilet \"\n" +

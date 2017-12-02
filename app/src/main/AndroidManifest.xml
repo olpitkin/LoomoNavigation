@@ -26,5 +26,6 @@
             </intent-filter>
         </activity>
         <meta-data android:name="packageTo1" android:value="com.segway.robot.TrackingSample_Phone"></meta-data>
+        <meta-data android:name="packageTo2" android:value="com.robot.olpit.loomophone"></meta-data>
     </application>
 </manifest>
