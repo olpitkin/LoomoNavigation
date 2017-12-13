@@ -74,14 +74,14 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
 
     private boolean isDetectionStarted = false;
     private boolean isTrackingStarted = false;
+    private boolean isManual = false;
+    private boolean isDebug = true;
+    private boolean isLost = false;
     private boolean mBaseBind;
     private boolean mHeadBind;
-    private Boolean isMoving = true;
     boolean mHeadFollow;
-    boolean mBaseFollow;
-    boolean mBaseGuide = true;
 
-    public float personDistance;
+    public float personDistance = -1;
 
     private ServiceBinder.BindStateListener mBindStateListener;
     private ServiceBinder.BindStateListener mRecognitionBindStateListener;
@@ -100,14 +100,6 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
     private WakeupListener mWakeupListener;
     private RecognitionListener mRecognitionListener;
 
-    enum DtsState {
-        STOP,
-        DETECTING,
-        TRACKING
-    }
-
-    DtsState mDtsState;
-
     private int controlSignal = 0;
     private int mSpeakerLanguage;
     private int mRecognitionLanguage;
@@ -116,19 +108,7 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
     private TextView hintTv;
     private AutoFitDrawableView mTextureView;
 
-    Thread thread;
-
-    private void showToast(final String text) {
-        final Activity activity = getActivity();
-        if (activity != null) {
-            activity.runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    Toast.makeText(activity, text, Toast.LENGTH_SHORT).show();
-                }
-            });
-        }
-    }
+    Thread controlThread;
 
     public static DtsFragment newInstance() {
         return new DtsFragment();
@@ -175,7 +155,8 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
         debug.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                sendString("debug");
+                //sendString("debug");
+                processControl();
             }
         });
     }
@@ -281,60 +262,51 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
 
             @Override
             public void onPersonDetectionResult(DTSPerson[] person) {
-
             }
 
             @Override
             public void onPersonDetectionError(int errorCode, String message) {
-
             }
         };
 
         mPersonTrackingListener = new PersonTrackingListener() {
             @Override
             public void onPersonTracking(final DTSPerson person) {
-                Log.d(TAG, "onPersonTracking: " + person);
+                //Log.d(TAG, "onPersonTracking: " + person);
                 if (person == null) {
                     return;
                 }
+
                 mTextureView.drawRect(person.getId(), person.getDrawingRect());
                 //mTextureView.drawRect(person.getDrawingRect());
 
                 if (mHeadFollow) {
                     mHeadPIDController.updateTarget(person.getTheta(), person.getDrawingRect(), 480);
-                }
-                if (mBaseFollow) {
-                    float personDistance = person.getDistance();
-                    // There is a bug in DTS, while using person.getDistance(), please check the result
-                    // The correct distance is between 0.35 meters and 5 meters
-                    if (personDistance > 0.35 && personDistance < 5) {
-                        float followDistance = (float) (personDistance - 1.2);
-                        float theta = person.getTheta();
-                        Log.d(TAG, "onPersonTracking: update base follow distance=" + followDistance + " theta=" + theta);
-                        mBase.updateTarget(followDistance, theta);
-                    }
-                } else if (mBaseGuide) {
                     personDistance = person.getDistance();
-
-                    getActivity().runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            hintTv.setText(String.format("%.2f", personDistance) + "m");
-                        }
-                    });
+                   // Log.e("test", person.getDistance() +  " " +  String.valueOf(person.getConfidence()));
                 }
             }
 
             @Override
             public void onPersonTrackingResult(DTSPerson person) {
-                //  Log.d(TAG, "onPersonTrackingResult() called with: person = [" + person + "]");
+                  Log.d(TAG, "onPersonTrackingResult() called with: person = [" + person + "]");
+                  if (person == null) {
+                      personDistance = -1;
+                      if (!isLost){
+                          try {
+                              mSpeaker.speak("i lost you", mTtsListener);
+                          } catch (VoiceException e) {
+                              e.printStackTrace();
+                          }
+                      }
+                      isLost = true;
+                      return;
+                  }
+                  isLost = false;
             }
 
             @Override
-            public void onPersonTrackingError(int errorCode, String message) {
-                showToast("Person tracking error: code=" + errorCode + " message=" + message);
-                mDtsState = DtsState.STOP;
-            }
+            public void onPersonTrackingError(int errorCode, String message) {}
         };
 
         mBindStateListener = new ServiceBinder.BindStateListener() {
@@ -375,7 +347,6 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                 controlSignal = 0;
                 mBase.setAngularVelocity(0);
                 mBase.setLinearVelocity(0);
-                isMoving = false;
                 getActivity().runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
@@ -402,9 +373,6 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                     String m = message.getContent().toString();
                     if (m.equals("STOP")) {
                         controlSignal = 0;
-                        mBase.setLinearVelocity(0);
-                        mBase.setAngularVelocity(0);
-                        isMoving = false;
                     } else if (m.equals("GOAL")) {
                         try {
                             mSpeaker.speak("done", mTtsListener);
@@ -418,28 +386,35 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                             e.printStackTrace();
                         }
                     }
-                    else if (m.equals("GO")) {
-                        isMoving = true;
+                    else if (m.equals("MANUAL")) {
+                        isManual = !isManual;
                     }
                     else if(Long.parseLong(m) == 0) {
                         controlSignal = 0;
+                        Log.i("MESSAGE", "sig0");
                     }
                     else if(Long.parseLong(m) == 1) {
                         controlSignal = 1;
+                        Log.i("MESSAGE", "sig1");
                     }
                     else if(Long.parseLong(m) == 2) {
+                        Log.i("MESSAGE", "sig2");
                         controlSignal = 2;
                     }
                     else if(Long.parseLong(m) == 3) {
+                        Log.i("MESSAGE", "sig3");
                         controlSignal = 3;
                     }
                     else if(Long.parseLong(m) == 4) {
+                        Log.i("MESSAGE", "sig4");
                         controlSignal = 4;
                     }
                     else if(Long.parseLong(m) == 5) {
+                        Log.i("MESSAGE", "sig5");
                         controlSignal = 5;
                     }
                     else if(Long.parseLong(m) == 6) {
+                        Log.i("MESSAGE", "sig6");
                         controlSignal = 6;
                     }
                 }
@@ -487,6 +462,7 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                 Log.d(TAG, "recognition phase: " + recognitionResult.getRecognitionResult() +
                         ", confidence:" + recognitionResult.getConfidence());
                 String result = recognitionResult.getRecognitionResult();
+                //TODO TRACK ME
                 if (result.contains("labor") && result.contains("room")) {
                     sendString("labor_room");
                 }
@@ -497,13 +473,16 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                     sendString("labor_room");
                 }
                 if (result.contains("David")) {
-                    sendString("david_wp");
+                    sendString("david");
                 }
                 else if (result.contains("toilet")) {
                     sendString("toilet");
                 }
                 else if (result.contains("secretary")) {
                     sendString("secretary");
+                }
+                else if (result.contains("professor")) {
+                    sendString("professor");
                 }
                 else if (result.contains("start")) {
                     sendString("start");
@@ -530,10 +509,7 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
 
             @Override
             public boolean onRecognitionError(String s) {
-                Log.d(TAG, "onRecognitionError: " + s);
-
                 try {
-                    Log.e("TAG", "speech");
                     mSpeaker.speak("i don't understand", mTtsListener);
                 } catch (VoiceException e) {
                     e.printStackTrace();
@@ -717,37 +693,43 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
         Runnable runnable = new Runnable() {
             @Override
             public void run() {
-                while (isMoving) {
-                    //  if (mDtsState == TRACKING && personDistance > 0.5 && personDistance < 5) {
+                while (true){
+                    if (personDistance > 0.5 && personDistance < 5 || isManual || isDebug) {
                     switch (controlSignal) {
                         case 0 :
+                            setHintTv("0");
                             mBase.setLinearVelocity(0);
                             mBase.setAngularVelocity(0);
                             break;
                         case 1 :
                             //LEFT TURN
+                            setHintTv("1");
                             mBase.setLinearVelocity(0);
-                            mBase.setAngularVelocity(0.4f);
+                            mBase.setAngularVelocity(0.7f);
                             break;
                         case 2 :
                             // LEFT + F
-                            mBase.setLinearVelocity(-0.3f);
+                            setHintTv("2");
+                            mBase.setLinearVelocity(-0.5f);
                             mBase.setAngularVelocity(0.2f);
                             break;
                         case 3 :
                             // AHEAD
+                            setHintTv("3");
                             mBase.setLinearVelocity(-0.7f);
                             mBase.setAngularVelocity(0);
                             break;
                         case 4 :
                             // RIGHT + F
-                            mBase.setLinearVelocity(-0.3f);
+                            setHintTv("4");
+                            mBase.setLinearVelocity(-0.5f);
                             mBase.setAngularVelocity(-0.2f);
                             break;
                         case 5 :
                             // RIGHT
+                            setHintTv("5");
                             mBase.setLinearVelocity(0);
-                            mBase.setAngularVelocity(-0.4f);
+                            mBase.setAngularVelocity(-0.7f);
                             break;
                         case 6 :
                             // BACK
@@ -755,9 +737,13 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                             mBase.setAngularVelocity(0);
                             break;
                         default:
-                              mBase.setLinearVelocity(0);
-                              mBase.setAngularVelocity(0);
-                              break;
+                            mBase.setLinearVelocity(0);
+                            mBase.setAngularVelocity(0);
+                            break;
+                    }
+                    } else {
+                        mBase.setLinearVelocity(0);
+                        mBase.setAngularVelocity(0);
                     }
                     try {
                         Thread.sleep(10);
@@ -765,14 +751,14 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                         e.printStackTrace();
                     }
                 }
-            }
+                }
         };
-        if (thread == null || !thread.isAlive() || thread.isInterrupted()) {
-            if (thread == null) {
-                thread = new Thread(runnable);
+        if (controlThread == null) {
+                controlThread = new Thread(runnable);
+                controlThread.start();
+            } else if (controlThread.isInterrupted()) {
+                controlThread.start();
             }
-            thread.start();
-        }
     }
 
     private void sendString(String c) {
@@ -800,27 +786,14 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                 "             },\n" +
 
                 "             {\n" +
-                "                 \"name\": \"word2\",\n" +
-                "                 \"isOptional\": true,\n" +
-                "                 \"word\": [\n" +
-                "                     \"the room\",\n" +
-                "                     \"professor\",\n" +
-                "                     \"the professor \"\n" +
-                "                 ]\n" +
-                "             },\n" +
-
-                "             {\n" +
                 "                 \"name\": \"word3\",\n" +
                 "                 \"isOptional\": false,\n" +
                 "                 \"word\": [\n" +
                 "                     \"start\",\n" +
                 "                     \"David\",\n" +
-                "                     \"Weber \",\n" +
-                "                     \"labor room \",\n" +
-                "                     \"labor \",\n" +
-                "                     \"go \",\n" +
+                "                     \"professor \",\n" +
+                "                     \"room \",\n" +
                 "                     \"wait \",\n" +
-                "                     \"labor waypoint \",\n" +
                 "                     \"toilet \"\n" +
                 "                 ]\n" +
                 "             }\n" +
@@ -839,5 +812,14 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
         DisplayMetrics dm = resources.getDisplayMetrics();
         config.locale = locale;
         resources.updateConfiguration(config, dm);
+    }
+
+    public void setHintTv(final String s) {
+        getActivity().runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                hintTv.setText(s);
+            }
+        });
     }
 }
