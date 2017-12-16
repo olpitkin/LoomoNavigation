@@ -710,8 +710,8 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                         case 2 :
                             // LEFT + F
                             setHintTv("2");
-                            mBase.setLinearVelocity(-0.5f);
-                            mBase.setAngularVelocity(0.2f);
+                            mBase.setLinearVelocity(0);
+                            mBase.setAngularVelocity(0.5f);
                             break;
                         case 3 :
                             // AHEAD
@@ -722,8 +722,8 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                         case 4 :
                             // RIGHT + F
                             setHintTv("4");
-                            mBase.setLinearVelocity(-0.5f);
-                            mBase.setAngularVelocity(-0.2f);
+                            mBase.setLinearVelocity(0f);
+                            mBase.setAngularVelocity(-0.5f);
                             break;
                         case 5 :
                             // RIGHT
