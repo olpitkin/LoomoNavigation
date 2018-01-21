@@ -75,8 +75,11 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
     private boolean isDetectionStarted = false;
     private boolean isTrackingStarted = false;
     private boolean isManual = false;
-    private boolean isDebug = true;
-    private boolean isLost = false;
+    private boolean isDebug = false;
+    private boolean isLost = true;
+    private boolean isWaiting = false;
+    private boolean personInSight = false;
+    private boolean noTracking = true;
     private boolean mBaseBind;
     private boolean mHeadBind;
     boolean mHeadFollow;
@@ -107,6 +110,9 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
 
     private TextView hintTv;
     private AutoFitDrawableView mTextureView;
+    private float linSpeed = 1f;
+    private float turnSpeed = 0.7f;
+    private float velSpeed = 0.5f;
 
     Thread controlThread;
 
@@ -151,14 +157,6 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
         view.findViewById(R.id.head_follow).setOnClickListener(this);
         mTextureView = (AutoFitDrawableView) view.findViewById(R.id.texture);
         hintTv = (TextView) view.findViewById(R.id.hint_tv);
-        Button debug = (Button) view.findViewById(R.id.debug);
-        debug.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                //sendString("debug");
-                processControl();
-            }
-        });
     }
 
     @Override
@@ -276,37 +274,40 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                 if (person == null) {
                     return;
                 }
-
-                mTextureView.drawRect(person.getId(), person.getDrawingRect());
-                //mTextureView.drawRect(person.getDrawingRect());
-
-                if (mHeadFollow) {
-                    mHeadPIDController.updateTarget(person.getTheta(), person.getDrawingRect(), 480);
-                    personDistance = person.getDistance();
-                   // Log.e("test", person.getDistance() +  " " +  String.valueOf(person.getConfidence()));
-                }
+                mTextureView.drawRect(person.getDrawingRect());
+                mHeadPIDController.updateTarget(person.getTheta(), person.getDrawingRect(), 480);
             }
 
             @Override
             public void onPersonTrackingResult(DTSPerson person) {
                   Log.d(TAG, "onPersonTrackingResult() called with: person = [" + person + "]");
                   if (person == null) {
-                      personDistance = -1;
+                      personInSight = false;
                       if (!isLost){
-                          try {
-                              mSpeaker.speak("i lost you", mTtsListener);
-                          } catch (VoiceException e) {
-                              e.printStackTrace();
-                          }
+                        speak("i lost you");
                       }
                       isLost = true;
                       return;
                   }
+                  if (isLost && person != null) {
+                      speak("i found you");
+                  }
                   isLost = false;
+
+                personDistance = person.getDistance();
+                //setHintTv(String.valueOf(personDistance));
+                if (personDistance  < 5 && personDistance > 0.3) {
+                    personInSight = true;
+                } else {
+                    personInSight = false;
+                }
+
             }
 
             @Override
-            public void onPersonTrackingError(int errorCode, String message) {}
+            public void onPersonTrackingError(int errorCode, String message) {
+                speak("error");
+            }
         };
 
         mBindStateListener = new ServiceBinder.BindStateListener() {
@@ -374,17 +375,16 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                     if (m.equals("STOP")) {
                         controlSignal = 0;
                     } else if (m.equals("GOAL")) {
-                        try {
-                            mSpeaker.speak("done", mTtsListener);
-                        } catch (VoiceException e) {
-                            e.printStackTrace();
-                        }
-                    } else if (m.equals("TURN")) {
-                        try {
-                            mSpeaker.speak("turn", mTtsListener);
-                        } catch (VoiceException e) {
-                            e.printStackTrace();
-                        }
+                        speak("destination arrived");
+                    }
+                    else if (m.equals("TURNL")) {
+                        speak("turn left in three meters");
+                    }
+                    else if (m.equals("TURNR")) {
+                        speak("turn right in three meters");
+                    }
+                    else if (m.equals("TURN")) {
+                        speak("turn in three meters");
                     }
                     else if (m.equals("MANUAL")) {
                         isManual = !isManual;
@@ -454,6 +454,7 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
             @Override
             public void onRecognitionStart() {
                 Log.d(TAG, "onRecognitionStart");
+                speak("yes");
             }
 
             @Override
@@ -462,59 +463,61 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                 Log.d(TAG, "recognition phase: " + recognitionResult.getRecognitionResult() +
                         ", confidence:" + recognitionResult.getConfidence());
                 String result = recognitionResult.getRecognitionResult();
-                //TODO TRACK ME
-                if (result.contains("labor") && result.contains("room")) {
-                    sendString("labor_room");
+
+                if (result.contains(("track me"))) {
+                        mDTS.startPersonTracking(null, 15L * 60 * 1000 * 1000, mPersonTrackingListener);
+                        isTrackingStarted = true;
+                        noTracking = false;
+                        //mHeadFollow = true;
                 }
-                else if (result.contains("labor") && result.contains("waypoint")) {
-                    sendString("labor_wp");
+                else if (result.contains(("stop tracking"))) {
+                    mDTS.stopPersonTracking();
+                    noTracking = true;
                 }
-                else if (result.contains("labor")) {
-                    sendString("labor_room");
-                }
-                if (result.contains("David")) {
-                    sendString("david");
-                }
-                else if (result.contains("toilet")) {
-                    sendString("toilet");
-                }
-                else if (result.contains("secretary")) {
-                    sendString("secretary");
-                }
-                else if (result.contains("professor")) {
-                    sendString("professor");
-                }
-                else if (result.contains("start")) {
-                    sendString("start");
-                }
-                else if (result.contains("room")) {
-                    sendString("room");
-                }
-                else if (result.contains("go")) {
-                    sendString("GO");
+                else if (result.contains(("destinations"))) {
+                    speak("i can bring you to secretary, start or any room number");
                 }
                 else if (result.contains("wait")) {
-                    controlSignal = 0;
+                    speak("waiting, tell me go if you wish to continue");
+                    isWaiting = true;
                     mBase.setLinearVelocity(0);
                     mBase.setAngularVelocity(0);
-                    sendString("STOP");
                 }
-                try {
-                    mSpeaker.speak("follow me", mTtsListener);
-                } catch (VoiceException e) {
-                    e.printStackTrace();
+                else if (result.contains("go") ||  result.contains("continue") ) {
+                    speak("follow me");
+                    isWaiting = false;
+                }
+                else {
+                    // DESTINATIONS
+                     if (result.contains("work")) {
+                        sendString("work");
+                    }
+                    if (result.contains("David")) {
+                        sendString("david");
+                    }
+                    else if (result.contains("toilet")) {
+                        sendString("toilet");
+                    }
+                    else if (result.contains("secretary")) {
+                        sendString("secretary");
+                    }
+                    else if (result.contains("professor")) {
+                        sendString("professor");
+                    }
+                    else if (result.contains("start")) {
+                        sendString("start");
+                    }
+                    else if (result.contains("room")) {
+                        sendString("room");
+                    }
+                    speak("follow me");
                 }
                 return false;
             }
 
             @Override
             public boolean onRecognitionError(String s) {
-                try {
-                    mSpeaker.speak("i don't understand", mTtsListener);
-                } catch (VoiceException e) {
-                    e.printStackTrace();
-                }
-
+        //      speak("i don't understand");
                 return false; //to wakeup
             }
         };
@@ -694,42 +697,36 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
             @Override
             public void run() {
                 while (true){
-                    if (personDistance > 0.5 && personDistance < 5 || isManual || isDebug) {
+                    if ((isManual || isDebug || personInSight || noTracking) && !isWaiting) {
                     switch (controlSignal) {
                         case 0 :
-                            setHintTv("0");
                             mBase.setLinearVelocity(0);
                             mBase.setAngularVelocity(0);
                             break;
                         case 1 :
                             //LEFT TURN
-                            setHintTv("1");
                             mBase.setLinearVelocity(0);
-                            mBase.setAngularVelocity(0.7f);
+                            mBase.setAngularVelocity(turnSpeed);
                             break;
                         case 2 :
                             // LEFT + F
-                            setHintTv("2");
                             mBase.setLinearVelocity(0);
-                            mBase.setAngularVelocity(0.5f);
+                            mBase.setAngularVelocity(velSpeed);
                             break;
                         case 3 :
                             // AHEAD
-                            setHintTv("3");
-                            mBase.setLinearVelocity(-0.7f);
+                            mBase.setLinearVelocity(-linSpeed);
                             mBase.setAngularVelocity(0);
                             break;
                         case 4 :
                             // RIGHT + F
-                            setHintTv("4");
                             mBase.setLinearVelocity(0f);
-                            mBase.setAngularVelocity(-0.5f);
+                            mBase.setAngularVelocity(-velSpeed);
                             break;
                         case 5 :
                             // RIGHT
-                            setHintTv("5");
                             mBase.setLinearVelocity(0);
-                            mBase.setAngularVelocity(-0.7f);
+                            mBase.setAngularVelocity(-turnSpeed);
                             break;
                         case 6 :
                             // BACK
@@ -791,17 +788,24 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                 "                 \"word\": [\n" +
                 "                     \"start\",\n" +
                 "                     \"David\",\n" +
+                "                     \"work\",\n" +
                 "                     \"professor \",\n" +
                 "                     \"room \",\n" +
                 "                     \"wait \",\n" +
+                "                     \"track me\",\n" +
+                "                     \"find me\",\n" +
+                "                     \"find\",\n" +
+                "                     \"track\",\n" +
+                "                     \"stop find\",\n" +
+                "                     \"stop tracking\",\n" +
+                "                     \"continue\",\n" +
+                "                     \"destinations\",\n" +
                 "                     \"toilet \"\n" +
                 "                 ]\n" +
                 "             }\n" +
 
                 "         ]\n" +
                 "     }";
-
-        //TODO SIMPLE COMMANDS TURN LEFT RIGHT STOP GO
         mThreeSlotGrammar = mRecognizer.createGrammarConstraint(grammarJson);
         mRecognizer.addGrammarConstraint(mThreeSlotGrammar);
     }
@@ -821,5 +825,13 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                 hintTv.setText(s);
             }
         });
+    }
+
+    public void speak(String s) {
+        try {
+            mSpeaker.speak(s, mTtsListener);
+        } catch (VoiceException e) {
+            e.printStackTrace();
+        }
     }
 }
