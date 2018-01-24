@@ -296,7 +296,7 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
 
                 personDistance = person.getDistance();
                 //setHintTv(String.valueOf(personDistance));
-                if (personDistance  < 5 && personDistance > 0.3) {
+                if (personDistance  < 2 && personDistance > 0.3) {
                     personInSight = true;
                 } else {
                     personInSight = false;
@@ -378,13 +378,10 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                         speak("destination arrived");
                     }
                     else if (m.equals("TURNL")) {
-                        speak("turn left in three meters");
+                        speak("turn left");
                     }
                     else if (m.equals("TURNR")) {
-                        speak("turn right in three meters");
-                    }
-                    else if (m.equals("TURN")) {
-                        speak("turn in three meters");
+                        speak("turn right");
                     }
                     else if (m.equals("MANUAL")) {
                         isManual = !isManual;
@@ -510,7 +507,13 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                     else if (result.contains("room")) {
                         sendString("room");
                     }
-                    speak("follow me");
+                    else if (result.contains("hallway")) {
+                        sendString("hallway");
+                    }
+                    else if (result.contains("office")) {
+                        sendString("office");
+                    }
+                        speak("follow me");
                 }
                 return false;
             }
@@ -789,6 +792,8 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                 "                     \"start\",\n" +
                 "                     \"David\",\n" +
                 "                     \"work\",\n" +
+                "                     \"hallway\",\n" +
+                "                     \"office\",\n" +
                 "                     \"professor \",\n" +
                 "                     \"room \",\n" +
                 "                     \"wait \",\n" +
