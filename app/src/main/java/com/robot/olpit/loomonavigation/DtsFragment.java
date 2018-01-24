@@ -781,7 +781,10 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                 "                 \"word\": [\n" +
                 "                     \"take me to\",\n" +
                 "                     \"bring me to\",\n" +
-                "                     \"get me to \"\n" +
+                "                     \"get me to \",\n" +
+                "                     \"tell me possible destinations \",\n" +
+                "                     \"destinations\",\n" +
+                "                     \"where can you guide me \"\n" +
                 "                 ]\n" +
                 "             },\n" +
 
@@ -798,13 +801,8 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                 "                     \"room \",\n" +
                 "                     \"wait \",\n" +
                 "                     \"track me\",\n" +
-                "                     \"find me\",\n" +
-                "                     \"find\",\n" +
-                "                     \"track\",\n" +
-                "                     \"stop find\",\n" +
                 "                     \"stop tracking\",\n" +
                 "                     \"continue\",\n" +
-                "                     \"destinations\",\n" +
                 "                     \"toilet \"\n" +
                 "                 ]\n" +
                 "             }\n" +
