@@ -110,7 +110,7 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
 
     private TextView hintTv;
     private AutoFitDrawableView mTextureView;
-    private float linSpeed = 1f;
+    private float linSpeed = 0.7f;
     private float turnSpeed = 0.7f;
     private float velSpeed = 0.5f;
 
@@ -208,6 +208,7 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
             public void onBind() {
                 mDTS = mVision.getDTS();
                 mDTS.setVideoSource(DTS.VideoSource.CAMERA);
+
                 Surface surface = new Surface(mTextureView.getPreview().getSurfaceTexture());
                 mDTS.setPreviewDisplay(surface);
                 mDTS.start();
@@ -223,7 +224,7 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
             @Override
             public void onBind() {
                 mHeadBind = true;
-                mHead.setMode(Head.MODE_ORIENTATION_LOCK);
+                mHead.setMode(Head.MODE_SMOOTH_TACKING);
                 mHead.setWorldPitch(0.3f);
                 mHeadPIDController.init(new HeadControlHandlerImpl(mHead));
                 mHeadPIDController.setHeadFollowFactor(1.0f);
@@ -275,6 +276,7 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                     return;
                 }
                 mTextureView.drawRect(person.getDrawingRect());
+                mHead.setMode(Head.MODE_ORIENTATION_LOCK);
                 mHeadPIDController.updateTarget(person.getTheta(), person.getDrawingRect(), 480);
             }
 
@@ -284,13 +286,13 @@ public class DtsFragment extends Fragment implements View.OnClickListener {
                   if (person == null) {
                       personInSight = false;
                       if (!isLost){
-                        speak("i lost you");
+                        //speak("i lost you");
                       }
                       isLost = true;
                       return;
                   }
                   if (isLost && person != null) {
-                      speak("i found you");
+                      //speak("i found you");
                   }
                   isLost = false;
 

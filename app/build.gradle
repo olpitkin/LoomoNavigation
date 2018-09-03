@@ -25,11 +25,11 @@ dependencies {
     androidTestImplementation 'com.android.support.test:runner:1.0.1'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.1'
 
-    compile 'com.segway.robot:support-lib:0.1.1'
-    compile 'com.segway.robot:robot-connectivity-sdk:0.5.98'
-    compile 'com.segway.robot:headsdk:0.6.364'
-    compile 'com.segway.robot:basesdk:0.6.364'
-    compile 'com.segway.robot:sensorsdk:0.6.364'
-    compile 'com.segway.robot:visionsdk:0.6.246'
-    compile 'com.segway.robot:speech-sdk:0.5.188'
+    implementation 'com.segway.robot:support-lib:1.1.2'
+    implementation 'com.segway.robot:robot-connectivity-sdk:0.5.104'
+    implementation 'com.segway.robot:headsdk:0.6.562'
+    implementation 'com.segway.robot:basesdk:0.6.562'
+    //implementation 'com.segway.robot:sensorsdk:0.6.562'
+    implementation 'com.segway.robot:visionsdk:0.6.408'
+    implementation 'com.segway.robot:speech-sdk:0.5.266'
 }
